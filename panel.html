@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Productos — DicaBolivia</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --card: #1d2638;
+    --border: #2a3550;
+    --text: #e6ebf5;
+    --muted: #8b96ad;
+    --accent: #4f8cff;
+    --accent-hover: #3d7bf0;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --amber: #f39c12;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 18px; font-weight: 600; }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  select, input[type="text"], input[type="number"] {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  #search { width: 220px; }
+  button {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover { background: var(--accent-hover); }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  button.secondary:hover { color: var(--text); border-color: var(--muted); background: transparent; }
+  button.danger { background: transparent; border: 1px solid var(--border); color: var(--red); }
+  button.danger:hover { border-color: var(--red); background: transparent; }
+  .banner {
+    display: none;
+    background: #3a2f14;
+    border: 1px solid #a8842c;
+    color: #f5d78e;
+    padding: 10px 24px;
+    font-size: 13px;
+  }
+  .banner code { background: rgba(0,0,0,.3); padding: 2px 6px; border-radius: 4px; }
+  main { padding: 20px 24px; max-width: 1500px; margin: 0 auto; }
+  .stats {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .stats span b { color: var(--text); }
+  .table-wrap {
+    overflow-x: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    padding: 12px 10px;
+    background: var(--card);
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: .05em;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  th:hover { color: var(--text); }
+  td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(79,140,255,.04); }
+  tr.modified td { box-shadow: inset 3px 0 0 var(--amber); }
+  .thumb {
+    width: 56px; height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    cursor: zoom-in;
+  }
+  .cell-nombre { min-width: 240px; max-width: 320px; }
+  .nombre-text { font-weight: 500; line-height: 1.35; }
+  .prod-link {
+    color: var(--muted);
+    font-size: 11px;
+    text-decoration: none;
+  }
+  .prod-link:hover { color: var(--accent); }
+  .price-input { width: 95px; text-align: right; }
+  .price-old { text-decoration: line-through; color: var(--muted); font-size: 11px; display: block; }
+  .price-hint { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; white-space: nowrap; }
+  .pct-na, .pct-zero { color: var(--muted); font-size: 12px; }
+  .badge-descuento {
+    display: inline-block;
+    margin-left: 6px;
+    background: rgba(46,204,113,.15);
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+  }
+  .badge-agotado {
+    background: rgba(231,76,60,.15);
+    color: var(--red);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+  }
+  .badge-stock {
+    background: rgba(46,204,113,.15);
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+  }
+  .sku-cell { color: var(--muted); font-family: monospace; white-space: nowrap; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #06280f;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    opacity: 0;
+    transform: translateY(15px);
+    transition: all .25s;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    z-index: 40;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+  }
+  .lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+  .empty { text-align: center; padding: 60px; color: var(--muted); }
+  #saveBtn.dirty { animation: pulse 1.5s infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(79,140,255,.5); }
+    50% { box-shadow: 0 0 0 8px rgba(79,140,255,0); }
+  }
+  .lbl { display: none; }
+
+  .td-pmen,
+  .pct-cell,
+  .price-old,
+  thead th[data-sort="precio_oferta"],
+  thead th.th-pct {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    header { padding: 10px 12px; gap: 8px; }
+    header h1 { font-size: 15px; width: 100%; }
+    .toolbar { margin-left: 0; width: 100%; }
+    .toolbar > * { flex-shrink: 0; }
+    #categorySelect { flex: 1 1 auto; max-width: 55%; }
+    #search { flex: 1 1 130px; width: auto; }
+    button { padding: 9px 11px; }
+    main { padding: 10px; }
+    .stats { font-size: 12px; gap: 10px; margin-bottom: 12px; }
+
+    .table-wrap { background: transparent; border: none; border-radius: 0; overflow: visible; }
+    table, tbody { display: block; }
+    thead { display: none; }
+    tbody { display: flex; flex-direction: column; gap: 10px; }
+
+    tbody tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    td { border-bottom: none; padding: 0; }
+    tr:hover td { background: transparent; }
+    tr.modified { border-color: var(--amber); }
+    tr.modified td { box-shadow: none; }
+
+    .td-img { flex: 0 0 64px; align-self: flex-start; }
+    .thumb { width: 64px; height: 64px; }
+    .cell-nombre { flex: 1 1 150px; min-width: 140px; }
+    .td-sku { flex: 1 1 46%; order: 5; }
+    .td-marca { flex: 1 1 46%; order: 6; }
+    .td-pmay, .td-pmen { flex: 1 1 46%; order: 7; }
+    .pct-cell { order: 8; flex: 0 0 22%; }
+    .td-stock { flex: 1 1 36%; order: 9; }
+    .td-cant { flex: 1 1 30%; order: 10; }
+
+    .lbl {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    td input[type="text"],
+    td input[type="number"],
+    td select {
+      font-size: 16px;
+      width: 100%;
+    }
+    .price-input { width: 100%; text-align: left; }
+    .sku-cell input { font-family: monospace; }
+    .badge-descuento { font-size: 14px; padding: 4px 10px; }
+    .prod-link { display: inline-block; margin-top: 6px; }
+    .toast { left: 12px; right: 12px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#128230; Panel de Productos</h1>
+  <div class="toolbar">
+    <select id="categorySelect"></select>
+    <input type="text" id="search" placeholder="Buscar por nombre o SKU...">
+    <button id="saveBtn">&#128190; Guardar JSON</button>
+    <button id="csvBtn" class="secondary">Exportar CSV</button>
+  </div>
+</header>
+
+<div class="banner" id="banner">
+  Para guardar cambios directamente en los JSON abre esta p&aacute;gina con:
+  <code>python3 server.py</code> en la carpeta del proyecto y entra a
+  <code>http://localhost:8000/panel.html</code>
+</div>
+
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-sort="imagenes">Imagen</th>
+          <th data-sort="nombre">Producto</th>
+          <th data-sort="sku">SKU</th>
+          <th data-sort="marca">Marca</th>
+          <th data-sort="precio_regular">Precio</th>
+          <th data-sort="precio_oferta">Precio Menor&nbsp;&#8595;</th>
+          <th class="th-pct">%&nbsp;Dcto.</th>
+          <th data-sort="en_stock">Stock</th>
+          <th data-sort="stock_cantidad">Cant.</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</main>
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const CATEGORIES = [
+  { id: "xvr", name: "XVR", file: "productos.json" },
+  { id: "hikvision", name: "Camaras Hikvision", file: "camaras_hikvision.json" },
+  { id: "cables", name: "Cables", file: "cables_redes.json" },
+  { id: "accesorios", name: "Accesorios", file: "accesorios_camaras.json" }
+];
+
+let products = [];
+let currentCategory = null;
+let sortKey = null;
+let sortDir = 1;
+
+const $ = (sel) => document.querySelector(sel);
+const tbody = $("#tbody");
+
+function money(v) {
+  if (v === null || v === undefined || v === "") return "";
+  return "Bs " + Number(v).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function storageKey(catId, prodId) {
+  return `edit_${catId}_${prodId}`;
+}
+
+function loadLocalEdits(catId) {
+  const edits = {};
+  const prefix = `edit_${catId}_`;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(prefix)) {
+      const pid = key.slice(prefix.length);
+      edits[pid] = JSON.parse(localStorage.getItem(key));
+    }
+  }
+  return edits;
+}
+
+async function loadCategory(cat) {
+  try {
+    const res = await fetch(cat.file, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    let data = await res.json();
+    const edits = loadLocalEdits(cat.id);
+    products = data.map(p => {
+      const e = edits[String(p.id)];
+      return e ? Object.assign({}, p, e) : p;
+    });
+    $("#banner").style.display = "none";
+  } catch (err) {
+    products = [];
+    $("#banner").style.display = "block";
+  }
+  render();
+}
+
+function getFiltered() {
+  const q = $("#search").value.trim().toLowerCase();
+  let list = products.filter(p => {
+    if (!q) return true;
+    return (p.nombre || "").toLowerCase().includes(q) ||
+           (p.sku || "").toLowerCase().includes(q) ||
+           (p.marca || "").toLowerCase().includes(q);
+  });
+  if (sortKey) {
+    list = [...list].sort((a, b) => {
+      let va = a[sortKey], vb = b[sortKey];
+      if (va === null || va === undefined) va = sortKey.includes("precio") ? Infinity : "";
+      if (vb === null || vb === undefined) vb = sortKey.includes("precio") ? Infinity : "";
+      if (typeof va === "string") return va.localeCompare(vb) * sortDir;
+      return (va > vb ? 1 : va < vb ? -1 : 0) * sortDir;
+    });
+  }
+  return list;
+}
+
+function isModified(p) {
+  return localStorage.getItem(storageKey(currentCategory.id, p.id)) !== null;
+}
+
+function renderStats(list) {
+  const total = list.length;
+  const conOferta = list.filter(p => p.precio_oferta !== null && p.precio_regular !== null && p.precio_oferta < p.precio_regular).length;
+  const enStock = list.filter(p => p.en_stock).length;
+  const precios = list.map(p => esMetro(p) ? (p.precio_metro ?? p.precio_oferta) : (p.precio_oferta ?? p.precio_regular)).filter(v => v !== null && v !== undefined);
+  const promedio = precios.length ? (precios.reduce((a, b) => a + b, 0) / precios.length).toFixed(2) : "-";
+  const modificados = products.filter(isModified).length;
+  $("#stats").innerHTML =
+    `<span>Productos: <b>${total}</b></span>` +
+    `<span>En oferta: <b>${conOferta}</b></span>` +
+    `<span>En stock: <b>${enStock}</b></span>` +
+    `<span>Precio promedio: <b>Bs ${promedio}</b></span>` +
+    (modificados ? `<span style="color:var(--amber)">Editados sin guardar: <b>${modificados}</b></span>` : "");
+}
+
+function calcDescuento(p) {
+  const mayor = Number(p.precio_regular);
+  const menor = Number(p.precio_oferta);
+  if (!mayor || !menor || isNaN(mayor) || isNaN(menor)) return null;
+  if (menor >= mayor) return 0;
+  return (1 - menor / mayor) * 100;
+}
+
+function esMetro(p) {
+  return p.unidad === "metro";
+}
+
+function renderRow(p) {
+  const tr = document.createElement("tr");
+  if (isModified(p)) tr.classList.add("modified");
+
+  const tieneOferta = p.precio_oferta !== null && p.precio_regular !== null && p.precio_oferta < p.precio_regular;
+  const metro = esMetro(p);
+
+  const imgSrc = Array.isArray(p.imagenes) && p.imagenes.length ? p.imagenes[0] : "";
+
+  tr.innerHTML = `
+    <td class="td-img">${imgSrc ? `<img class="thumb" src="${imgSrc}" loading="lazy" alt="">` : "-"}</td>
+    <td class="cell-nombre td-nombre">
+      <div class="nombre-text">${escHtml(p.nombre)}</div>
+      <a class="prod-link" href="${p.url}" target="_blank">ver en sitio &#8599;</a>
+    </td>
+    <td class="td-sku"><span class="lbl">SKU</span><span class="sku-cell">${escHtml(p.sku || "-")}</span></td>
+    <td class="td-marca"><span class="lbl">Marca</span><span class="sku-cell">${escHtml(p.marca || "-")}</span></td>
+    <td class="td-pmay"><span class="lbl">${metro ? "Precio x metro" : "Precio"}</span>
+      <input type="number" step="0.01" min="0" data-field="${metro ? "precio_metro" : "precio_regular"}" class="price-input" value="${metro ? (p.precio_metro ?? "") : (p.precio_regular ?? "")}">
+      ${tieneOferta && !metro ? `<span class="price-old">${money(p.precio_regular)}</span>` : ""}
+      ${metro ? `<span class="price-hint"></span>` : ""}
+    </td>
+    <td class="td-pmen"><span class="lbl">Precio menor</span><span class="sku-cell">${p.precio_oferta ?? "-"}</span></td>
+    <td class="pct-cell"><span class="lbl">% Dcto.</span><span class="pct-val"></span></td>
+    <td class="td-stock"><span class="lbl">Stock</span>
+      <select data-field="en_stock">
+        <option value="true" ${p.en_stock === true ? "selected" : ""}>Disponible</option>
+        <option value="false" ${p.en_stock === false ? "selected" : ""}>Agotado</option>
+      </select>
+    </td>
+    <td class="td-cant"><span class="lbl">Cantidad</span><input type="number" step="1" min="0" data-field="stock_cantidad" class="price-input" value="${p.stock_cantidad ?? ""}"></td>
+  `;
+
+  const thumb = tr.querySelector(".thumb");
+  if (thumb) thumb.addEventListener("click", () => openLightbox(imgSrc));
+
+  tr.querySelectorAll("[data-field]").forEach(input => {
+    const field = input.dataset.field;
+    const handler = () => {
+      let value;
+      if (field === "en_stock") value = input.value === "true";
+      else if (field === "precio_metro") {
+        value = input.value === "" ? null : parseFloat(input.value);
+        p.precio_metro = value;
+        if (value !== null && p.metros) {
+          p.precio_oferta = Math.round(value * p.metros * 100) / 100;
+        }
+      }
+      else if (input.type === "number") value = input.value === "" ? null : parseFloat(input.value);
+      else value = input.value.trim();
+
+      p[field] = value;
+      persistProduct(p);
+      refreshRow(tr, p);
+      renderStats(getFiltered());
+    };
+    input.addEventListener("input", handler);
+    input.addEventListener("change", handler);
+  });
+
+  refreshRow(tr, p);
+
+  return tr;
+}
+
+function refreshRow(tr, p) {
+  const metro = esMetro(p);
+  const tieneOferta = p.precio_oferta !== null && p.precio_regular !== null && p.precio_oferta < p.precio_regular;
+
+  const oldEl = tr.querySelector(".price-old");
+  if (tieneOferta && !metro) {
+    if (!oldEl) {
+      const span = document.createElement("span");
+      span.className = "price-old";
+      tr.children[4].appendChild(span);
+    }
+    tr.querySelector(".price-old").textContent = money(p.precio_regular);
+  } else {
+    if (oldEl) oldEl.remove();
+  }
+
+  const hintEl = tr.querySelector(".price-hint");
+  if (hintEl) {
+    const pm = Number(p.precio_metro);
+    hintEl.textContent = (pm && p.metros) ? `= ${money(Math.round(pm * p.metros * 100) / 100)} el rollo de ${p.metros} m` : "";
+  }
+
+  const pct = calcDescuento(p);
+  const pctVal = tr.querySelector(".pct-val");
+  if (pct === null) {
+    pctVal.innerHTML = `<span class="pct-na">-</span>`;
+  } else if (pct === 0) {
+    pctVal.innerHTML = `<span class="pct-zero">0%</span>`;
+  } else {
+    pctVal.innerHTML = `<span class="badge-descuento">-${pct.toFixed(1).replace(/\.0$/, "")}%</span>`;
+  }
+
+  tr.classList.toggle("modified", isModified(p));
+}
+
+function persistProduct(p) {
+  const key = storageKey(currentCategory.id, p.id);
+  const clean = {};
+  ["nombre", "sku", "precio_regular", "precio_oferta", "precio_metro", "unidad", "metros", "en_stock", "stock_cantidad"].forEach(f => clean[f] = p[f]);
+  localStorage.setItem(key, JSON.stringify(clean));
+  $("#saveBtn").classList.add("dirty");
+}
+
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function escAttr(s) { return escHtml(s); }
+
+function render() {
+  const list = getFiltered();
+  tbody.innerHTML = "";
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">${products.length ? "Sin resultados." : "No hay productos cargados."}</td></tr>`;
+  } else {
+    list.forEach(p => tbody.appendChild(renderRow(p)));
+  }
+  renderStats(list);
+}
+
+function download(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildExport() {
+  return JSON.stringify(products, null, 2);
+}
+
+$("#saveBtn").addEventListener("click", async () => {
+  if (!currentCategory) return;
+  const btn = $("#saveBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: currentCategory.file, data: products })
+    });
+    const result = await res.json();
+    if (!result.ok) throw new Error(result.error || "error del servidor");
+
+    clearLocalEdits(currentCategory.id);
+    tbody.querySelectorAll("tr.modified").forEach(tr => tr.classList.remove("modified"));
+    $("#saveBtn").classList.remove("dirty");
+    renderStats(getFiltered());
+    showToast(`Guardado en disco: ${result.file} (${result.items} productos)`);
+  } catch (err) {
+    download(currentCategory.file, buildExport(), "application/json");
+    showToast("Sin servidor de guardado. Se descargó el JSON. Usa server.py");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function clearLocalEdits(catId) {
+  const prefix = `edit_${catId}_`;
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(prefix)) keys.push(k);
+  }
+  keys.forEach(k => localStorage.removeItem(k));
+}
+
+$("#csvBtn").addEventListener("click", () => {
+  const cols = ["id","url","nombre","sku","marca","precio_regular","precio_oferta","precio_metro","unidad","metros","moneda","en_stock","stock_cantidad","categorias","tags"];
+  const rows = [cols.join(";")];
+  products.forEach(p => {
+    rows.push(cols.map(c => {
+      let v = p[c];
+      if (Array.isArray(v)) v = v.join(", ");
+      v = String(v ?? "").replace(/;/g, ",").replace(/\r?\n/g, " ");
+      return v;
+    }).join(";"));
+  });
+  const csvName = currentCategory.file.replace(".json", ".csv");
+  download(csvName, "\ufeff" + rows.join("\n"), "text/csv;charset=utf-8");
+  showToast("CSV descargado: " + csvName);
+});
+
+$("#resetBtn")?.addEventListener("click", () => {
+  if (!confirm("\u00BFDescartar todas las ediciones locales de esta categor\u00EDa?")) return;
+  if (currentCategory) clearLocalEdits(currentCategory.id);
+  loadCategory(currentCategory);
+  showToast("Cambios descartados");
+});
+
+$("#search").addEventListener("input", render);
+
+document.querySelectorAll("th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (sortKey === key) sortDir *= -1;
+    else { sortKey = key; sortDir = 1; }
+    render();
+  });
+});
+
+function openLightbox(src) {
+  $("#lightboxImg").src = src;
+  $("#lightbox").style.display = "flex";
+}
+$("#lightbox").addEventListener("click", () => {
+  $("#lightbox").style.display = "none";
+});
+
+let toastTimer;
+function showToast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+const sel = $("#categorySelect");
+CATEGORIES.forEach(c => {
+  const opt = document.createElement("option");
+  opt.value = c.id;
+  opt.textContent = `${c.name} (${c.file})`;
+  sel.appendChild(opt);
+});
+sel.addEventListener("change", () => {
+  currentCategory = CATEGORIES.find(c => c.id === sel.value);
+  sortKey = null;
+  applyDefaultSearch(currentCategory);
+  loadCategory(currentCategory);
+});
+
+function applyDefaultSearch(cat) {
+  $("#search").value = cat && cat.id === "xvr" ? "hikvision" : "";
+}
+
+currentCategory = CATEGORIES[0];
+applyDefaultSearch(currentCategory);
+loadCategory(currentCategory);
+</script>
+</body>
+</html>

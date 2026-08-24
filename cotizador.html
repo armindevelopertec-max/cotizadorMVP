@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizador — DicaBolivia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --card: #1d2638;
+    --border: #2a3550;
+    --text: #e6ebf5;
+    --muted: #8b96ad;
+    --accent: #4f8cff;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --amber: #f39c12;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header .back {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    padding: 7px 12px;
+    border-radius: 8px;
+  }
+  header .back:hover { color: var(--text); }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 18px;
+    padding: 18px 20px;
+    max-width: 1500px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  .catalog-top {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  input[type="text"], input[type="number"], input[type="date"], input[type="time"], select {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  #searchCat { flex: 1 1 200px; width: auto; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .prod-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform .12s, border-color .12s;
+  }
+  .prod-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .prod-img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    background: var(--card);
+    cursor: zoom-in;
+  }
+  .prod-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .prod-nombre { font-size: 13px; font-weight: 500; line-height: 1.35; min-height: 35px; }
+  .prod-sku { font-size: 11px; color: var(--muted); font-family: monospace; }
+  .prod-cat { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .prod-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 6px; }
+  .prod-precio { font-size: 15px; font-weight: 700; color: var(--green); }
+  .btn-add {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    padding: 7px 13px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .btn-add:hover { filter: brightness(1.15); }
+  .badge-stock {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    align-self: flex-start;
+  }
+  .in-stock { background: rgba(46,204,113,.15); color: var(--green); }
+  .out-stock { background: rgba(231,76,60,.15); color: var(--red); }
+
+  aside {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    position: sticky;
+    top: 66px;
+  }
+  aside h2 { font-size: 15px; margin-bottom: 12px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cart-items { max-height: 300px; overflow-y: auto; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+  .cart-item {
+    display: grid;
+    grid-template-columns: 42px 1fr auto;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+    align-items: center;
+  }
+  .cart-item img { width: 42px; height: 42px; border-radius: 6px; object-fit: cover; }
+  .ci-nombre { font-size: 12px; line-height: 1.3; margin-bottom: 3px; }
+  .ci-controls { display: flex; align-items: center; gap: 6px; }
+  .qty-btn {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    font-size: 13px;
+  }
+  .qty-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .ci-qty { min-width: 22px; text-align: center; font-weight: 700; font-size: 13px; }
+  .ci-price {
+    width: 78px !important;
+    text-align: right;
+    padding: 5px 7px !important;
+    font-size: 12px !important;
+  }
+  .ci-del {
+    background: transparent;
+    border: none;
+    color: var(--red);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+  }
+  .totals { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; font-size: 13px; }
+  .t-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .t-row.big { font-size: 17px; font-weight: 700; margin: 8px 0; }
+  .t-row.saldo { color: var(--amber); font-weight: 600; }
+  #anticipo { text-align: right; width: 110px; padding: 5px 8px; font-size: 13px; }
+  .btn-pdf {
+    width: 100%;
+    background: var(--green);
+    border: none;
+    color: #04240f;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  .btn-pdf:hover { filter: brightness(1.08); }
+  .cart-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
+  .company-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+  .company-box b { color: var(--text); font-size: 14px; letter-spacing: .04em; }
+  input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--accent);
+    transform: scale(1.25);
+    cursor: pointer;
+  }
+  .hidden { display: none !important; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--green);
+    color: #06280f;
+    padding: 11px 22px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    opacity: 0;
+    transition: all .25s;
+    pointer-events: none;
+    z-index: 60;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.88);
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+  }
+  .lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; }
+  .banner {
+    display: none;
+    background: #3a2f14;
+    border-bottom: 1px solid #a8842c;
+    color: #f5d78e;
+    padding: 9px 20px;
+    font-size: 13px;
+  }
+  .banner code { background: rgba(0,0,0,.3); padding: 1px 6px; border-radius: 4px; }
+
+  #printArea { display: none; }
+
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; background: #fff; color: #000; font-family: Arial, sans-serif; padding: 24px; }
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; padding: 12px; }
+    aside { position: static; order: -1; }
+    .cart-items { max-height: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="panel.html">&larr; Panel</a>
+  <h1>&#129534; Cotizador</h1>
+</header>
+
+<div class="banner" id="banner">
+  Ejecuta <code>python3 server.py</code> y entra a <code>http://localhost:8000/cotizador.html</code> para cargar los productos.
+</div>
+
+<div class="layout">
+  <section id="catalogSection">
+    <div class="catalog-top">
+      <input type="text" id="searchCat" placeholder="Buscar producto o SKU...">
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <aside id="cartPanel">
+    <h2>&#128722; Cotizaci&oacute;n</h2>
+    <div class="company-box">
+      <b>BLUETEL</b> &mdash; DISTRIBUIDOR AUTORIZADO<br>
+      T&eacute;c. Armin Antonio Mendieta &middot; Tel. 63760097
+    </div>
+    <div class="field">
+      <label>Nombre del cliente *</label>
+      <input type="text" id="cliente" placeholder="Nombre del cliente">
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; font-size:13px">
+        <input type="checkbox" id="conInstalacion"> Incluye instalaci&oacute;n
+      </label>
+    </div>
+    <div class="field row2 hidden" id="instFields">
+      <div>
+        <label>Fecha de asignaci&oacute;n de instalaci&oacute;n</label>
+        <input type="date" id="fechaInst">
+      </div>
+      <div>
+        <label>Hora</label>
+        <input type="time" id="horaInst">
+      </div>
+    </div>
+    <div class="field row2 hidden" id="instPuntosRow">
+      <div>
+        <label>Cantidad de puntos</label>
+        <input type="number" id="puntosInst" min="1" step="1" value="1">
+      </div>
+      <div>
+        <label>Precio por punto (Bs)</label>
+        <input type="number" id="precioPunto" step="0.01" min="0" value="100">
+      </div>
+    </div>
+    <div class="field">
+      <label>Saldo adelanto (Bs)</label>
+      <input type="number" step="0.01" min="0" id="anticipo" placeholder="0.00">
+    </div>
+
+    <h2 style="margin-top:16px">Carrito</h2>
+    <div class="cart-items" id="cartItems"></div>
+    <div class="totals" id="totals"></div>
+    <button class="btn-pdf" id="pdfBtn">&#128196; Generar PDF</button>
+  </aside>
+</div>
+
+<div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+<div class="toast" id="toast"></div>
+<div id="printArea"></div>
+<script>
+const CATS = [
+  { id: "xvr", name: "XVR", file: "productos.json" },
+  { id: "hik", name: "Camaras Hikvision", file: "camaras_hikvision.json" },
+  { id: "cables", name: "Cables", file: "cables_redes.json" },
+  { id: "acc", name: "Accesorios", file: "accesorios_camaras.json" }
+];
+
+let catalog = [];
+let cart = {};
+let currentCat = "all";
+const INST_KEY = "__instalacion";
+
+const $ = (sel) => document.querySelector(sel);
+
+function money(v) {
+  const n = Number(v);
+  if (!n && n !== 0) return "-";
+  return "Bs " + n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function precioBase(p) {
+  if (p.unidad === "metro" && p.precio_metro != null) return p.precio_metro;
+  return p.precio_oferta ?? p.precio_regular ?? 0;
+}
+
+function cantLabel(it) {
+  return `${it.qty}${it.unit ? " " + it.unit : ""}`;
+}
+
+async function loadCatalog() {
+  try {
+    for (const cat of CATS) {
+      const res = await fetch(cat.file, { cache: "no-store" });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      data.forEach(p => catalog.push({ ...p, _cat: cat.id, _catName: cat.name }));
+    }
+    $("#banner").style.display = "none";
+  } catch (err) {
+    $("#banner").style.display = "block";
+  }
+  renderChips();
+  renderGrid();
+}
+
+function renderChips() {
+  const chipsEl = $("#chips");
+  chipsEl.innerHTML = "";
+  const defs = [{ id: "all", name: "Todos" }, ...CATS];
+  defs.forEach(d => {
+    const b = document.createElement("button");
+    b.className = "chip" + (currentCat === d.id ? " active" : "");
+    b.textContent = d.name;
+    b.addEventListener("click", () => {
+      currentCat = d.id;
+      renderChips();
+      renderGrid();
+    });
+    chipsEl.appendChild(b);
+  });
+}
+
+function getFilteredCatalog() {
+  const q = $("#searchCat").value.trim().toLowerCase();
+  return catalog.filter(p => {
+    if (currentCat !== "all" && p._cat !== currentCat) return false;
+    if (!q) return true;
+    return (p.nombre || "").toLowerCase().includes(q) ||
+           (p.sku || "").toLowerCase().includes(q) ||
+           (p.marca || "").toLowerCase().includes(q);
+  });
+}
+
+function renderGrid() {
+  const grid = $("#grid");
+  const list = getFilteredCatalog();
+  grid.innerHTML = "";
+  if (!list.length) {
+    grid.innerHTML = `<div class="cart-empty">Sin productos.</div>`;
+    return;
+  }
+  list.forEach(p => {
+    const key = `${p._cat}_${p.id}`;
+    const img = Array.isArray(p.imagenes) && p.imagenes.length ? p.imagenes[0] : "";
+    const enStock = p.en_stock === true;
+    const card = document.createElement("div");
+    card.className = "prod-card";
+    card.innerHTML = `
+      ${img ? `<img class="prod-img" src="${img}" loading="lazy" alt="">` : `<div class="prod-img"></div>`}
+      <div class="prod-body">
+        <span class="prod-cat">${escHtml(p._catName)}</span>
+        <div class="prod-nombre">${escHtml(p.nombre)}</div>
+        <span class="prod-sku">${escHtml(p.sku || "-")}</span>
+        <span class="badge-stock ${enStock ? "in-stock" : "out-stock"}">${enStock ? `Disponible${p.stock_cantidad ? " (" + p.stock_cantidad + ")" : ""}` : "Agotado"}</span>
+        <div class="prod-foot">
+          <span class="prod-precio">${money(precioBase(p))}${p.unidad === "metro" ? '<small style="font-size:10px; color:var(--muted); font-weight:600">/m</small>' : ""}</span>
+          <button class="btn-add" title="Agregar al carrito">+</button>
+        </div>
+        ${p.unidad === "metro" && p.metros ? `<span style="font-size:10px; color:var(--muted); padding:0 12px 8px">Rollo de ${p.metros} m &middot; Bs ${(p.precio_oferta ?? p.precio_regular ?? 0).toLocaleString("es-BO", {minimumFractionDigits: 2, maximumFractionDigits: 2})} c/u</span>` : ""}
+      </div>
+    `;
+    const thumb = card.querySelector(".prod-img");
+    if (img) thumb.addEventListener("click", () => {
+      $("#lightboxImg").src = img;
+      $("#lightbox").style.display = "flex";
+    });
+    card.querySelector(".btn-add").addEventListener("click", () => addToCart(key));
+    grid.appendChild(card);
+  });
+}
+
+function addToCart(key) {
+  const p = catalog.find(x => `${x._cat}_${x.id}` === key);
+  if (!p) return;
+  if (cart[key]) {
+    cart[key].qty += 1;
+  } else {
+    cart[key] = { nombre: p.nombre, sku: p.sku || "", precio: precioBase(p), qty: 1, img: (Array.isArray(p.imagenes) && p.imagenes.length ? p.imagenes[0] : ""), unit: p.unidad === "metro" ? "m" : "" };
+  }
+  persistCart();
+  renderCart();
+  showToast(`Agregado: ${p.nombre.slice(0, 40)}...`);
+}
+
+function setQty(key, qty) {
+  if (!cart[key]) return;
+  if (qty <= 0) delete cart[key];
+  else {
+    cart[key].qty = qty;
+    if (key === INST_KEY) $("#puntosInst").value = qty;
+  }
+  persistCart();
+  renderCart();
+}
+
+function setPrice(key, price) {
+  if (!cart[key]) return;
+  cart[key].precio = price === "" ? 0 : Number(price);
+  if (key === INST_KEY) cart[key]._manualPrice = true;
+  persistCart();
+  updateTotals();
+}
+
+function removeItem(key) {
+  delete cart[key];
+  if (key === INST_KEY) {
+    $("#conInstalacion").checked = false;
+    $("#instFields").classList.add("hidden");
+    $("#instPuntosRow").classList.add("hidden");
+  }
+  persistCart();
+  renderCart();
+}
+
+function clearCart() {
+  cart = {};
+  persistCart();
+  renderCart();
+}
+
+function cartTotal() {
+  return Object.values(cart).reduce((sum, it) => sum + it.qty * (it.precio || 0), 0);
+}
+
+function persistCart() {
+  localStorage.setItem("cotizador_cart", JSON.stringify(cart));
+}
+
+function restoreCart() {
+  try {
+    cart = JSON.parse(localStorage.getItem("cotizador_cart")) || {};
+  } catch { cart = {}; }
+}
+
+function renderCart() {
+  const wrap = $("#cartItems");
+  wrap.innerHTML = "";
+  const entries = Object.entries(cart);
+  if (!entries.length) {
+    wrap.innerHTML = `<div class="cart-empty">Carrito vac\u00EDo. Agrega productos del cat\u00E1logo.</div>`;
+  }
+  entries.forEach(([key, it]) => {
+    const div = document.createElement("div");
+    div.className = "cart-item";
+    div.innerHTML = `
+      ${it.img ? `<img src="${it.img}" alt="">` : "<div></div>"}
+      <div>
+        <div class="ci-nombre">${escHtml(it.nombre)}</div>
+        <div class="ci-controls">
+          <button class="qty-btn" data-a="menos">&minus;</button>
+          <span class="ci-qty">${it.qty}${it.unit ? " " + it.unit : ""}</span>
+          <button class="qty-btn" data-a="mas">+</button>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">
+        <input type="number" step="0.01" min="0" class="ci-price" value="${it.precio}">
+        <button class="ci-del" title="Quitar">&#128465;</button>
+      </div>
+    `;
+    div.querySelector('[data-a="mas"]').addEventListener("click", () => setQty(key, it.qty + 1));
+    div.querySelector('[data-a="menos"]').addEventListener("click", () => setQty(key, it.qty - 1));
+    div.querySelector(".ci-price").addEventListener("change", e => setPrice(key, e.target.value));
+    div.querySelector(".ci-del").addEventListener("click", () => removeItem(key));
+    wrap.appendChild(div);
+  });
+  updateTotals();
+}
+
+function updateTotals() {
+  const total = cartTotal();
+  const anticipo = Number($("#anticipo").value) || 0;
+  const saldo = Math.max(total - anticipo, 0);
+  $("#totals").innerHTML = `
+    <div class="t-row"><span>Items</span><b>${Object.values(cart).reduce((a, i) => a + i.qty, 0)}</b></div>
+    <div class="t-row big"><span>Total</span><span>${money(total)}</span></div>
+    <div class="t-row saldo"><span>Saldo restante</span><b>${money(saldo)}</b></div>
+  `;
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+$("#lightbox").addEventListener("click", () => { $("#lightbox").style.display = "none"; });
+$("#searchCat").addEventListener("input", renderGrid);
+$("#anticipo").addEventListener("input", updateTotals);
+$("#conInstalacion").addEventListener("change", () => syncInstalacion(true));
+$("#puntosInst").addEventListener("input", () => syncInstalacion(false));
+$("#precioPunto").addEventListener("input", () => syncInstalacion(true));
+
+function syncInstalacion(forcePrice) {
+  const checked = $("#conInstalacion").checked;
+  $("#instFields").classList.toggle("hidden", !checked);
+  $("#instPuntosRow").classList.toggle("hidden", !checked);
+  const prev = cart[INST_KEY];
+  if (!checked) {
+    if (prev) {
+      delete cart[INST_KEY];
+      persistCart();
+      renderCart();
+    }
+    return;
+  }
+  const puntos = Math.max(1, parseInt($("#puntosInst").value, 10) || 1);
+  const precio = Math.max(0, Number($("#precioPunto").value) || 0);
+  const manual = prev && prev._manualPrice && !forcePrice;
+  cart[INST_KEY] = {
+    nombre: `Instalaci\u00f3n de c\u00e1maras (${puntos} ${puntos === 1 ? "punto" : "puntos"})`,
+    sku: "SERVICIO",
+    precio: manual ? prev.precio : precio,
+    qty: puntos,
+    img: "",
+    _manualPrice: !!manual
+  };
+  persistCart();
+  renderCart();
+}
+
+function fmtFecha(iso) {
+  if (!iso) return "-";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+const imgCache = {};
+
+function blobToDataURL(blob) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+}
+
+async function fetchImageBlob(url) {
+  const intentos = [
+    () => fetch("/api/img?url=" + encodeURIComponent(url), { cache: "force-cache" }),
+    () => fetch(url, { mode: "cors" })
+  ];
+  for (const intento of intentos) {
+    try {
+      const r = await intento();
+      if (r.ok) return await r.blob();
+    } catch {}
+  }
+  return null;
+}
+
+async function normalizeImage(url) {
+  if (!url) return null;
+  if (imgCache[url]) return imgCache[url];
+  try {
+    const blob = await fetchImageBlob(url);
+    if (!blob) return null;
+    const dataUrl = await blobToDataURL(blob);
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = dataUrl;
+    });
+    const max = 200;
+    const scale = Math.min(1, max / Math.max(img.width || 1, img.height || 1));
+    const w = Math.max(1, Math.round((img.width || max) * scale));
+    const h = Math.max(1, Math.round((img.height || max) * scale));
+    const cv = document.createElement("canvas");
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const jpeg = cv.toDataURL("image/jpeg", 0.85);
+    imgCache[url] = jpeg;
+    return jpeg;
+  } catch {
+    return null;
+  }
+}
+
+function sanitize(name) {
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_") || "cliente";
+}
+
+function buildPrintHtml() {
+  const total = cartTotal();
+  const anticipo = Number($("#anticipo").value) || 0;
+  const conInst = $("#conInstalacion").checked;
+  const rows = Object.values(cart).map(it => `
+    <tr>
+      <td style="text-align:center; width:64px">${it.img ? `<img src="${it.img}" style="width:56px; height:56px; object-fit:cover">` : ""}</td>
+      <td style="text-align:center">${escHtml(cantLabel(it))}</td>
+      <td>${escHtml(it.nombre)}${it.sku ? `<br><small>${escHtml(it.sku)}</small>` : ""}</td>
+      <td style="text-align:right">${money(it.precio)}</td>
+      <td style="text-align:right">${money(it.qty * (it.precio || 0))}</td>
+    </tr>`).join("");
+  return `
+    <div style="border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:10px">
+      <h2 style="margin:0">BLUETEL</h2>
+      <p style="margin:0"><b>DISTRIBUIDOR AUTORIZADO</b><br>T&eacute;c. Armin Antonio Mendieta &middot; Tel. 63760097</p>
+    </div>
+    <h3>${conInst ? "COTIZACI&Oacute;N / ORDEN DE INSTALACI&Oacute;N" : "COTIZACI&Oacute;N"}</h3>
+    <table style="width:100%; margin:8px 0" cellpadding="4">
+      <tr><td><b>Cliente:</b> ${escHtml($("#cliente").value || "-")}</td></tr>
+      ${conInst ? `<tr><td><b>Fecha de asignaci&oacute;n de instalaci&oacute;n:</b> ${fmtFecha($("#fechaInst").value)}</td>
+          <td><b>Hora:</b> ${escHtml($("#horaInst").value || "-")}</td></tr>` : ""}
+      <tr><td colspan="2"><b>Generado:</b> ${new Date().toLocaleString("es-BO")}</td></tr>
+    </table>
+    <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:12px">
+      <thead><tr style="background:#eee"><th>Img</th><th>Cant.</th><th align="left">Producto</th><th align="right">P. Unit</th><th align="right">Subtotal</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <table style="width:100%; margin-top:8px; font-size:13px">
+      <tr><td align="right"><b>TOTAL: ${money(total)}</b></td></tr>
+      <tr><td align="right">Saldo adelanto: ${money(anticipo)}</td></tr>
+      <tr><td align="right"><b>Saldo restante: ${money(Math.max(total - anticipo, 0))}</b></td></tr>
+    </table>`;
+}
+
+async function generatePDF() {
+  if (!Object.keys(cart).length) {
+    showToast("El carrito esta vacio");
+    return;
+  }
+  if (!$("#cliente").value.trim()) {
+    showToast("Ingresa el nombre del cliente");
+    $("#cliente").focus();
+    return;
+  }
+
+  const cliente = $("#cliente").value.trim();
+  const fecha = fmtFecha($("#fechaInst").value);
+  const hora = $("#horaInst").value || "-";
+  const anticipo = Number($("#anticipo").value) || 0;
+  const total = cartTotal();
+
+  if (!window.jspdf) {
+    $("#printArea").innerHTML = buildPrintHtml();
+    window.print();
+    return;
+  }
+
+  showToast("Generando PDF con imagenes...");
+  const items = Object.values(cart);
+  const dataUrls = await Promise.all(items.map(it => normalizeImage(it.img)));
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const W = doc.internal.pageSize.getWidth();
+    const conInst = $("#conInstalacion").checked;
+
+    doc.setFontSize(16).setFont(undefined, "bold");
+    doc.text("BLUETEL", 14, 15);
+    doc.setFontSize(10).setFont(undefined, "bold");
+    doc.text("DISTRIBUIDOR AUTORIZADO", 14, 21);
+    doc.setFontSize(9).setFont(undefined, "normal");
+    doc.text("Tec. Armin Antonio Mendieta  |  Tel. 63760097", 14, 26);
+
+    doc.setDrawColor(0);
+    doc.line(14, 29, W - 14, 29);
+
+    doc.setFontSize(13).setFont(undefined, "bold");
+    doc.text(conInst ? "COTIZACION / ORDEN DE INSTALACION" : "COTIZACION", 14, 38);
+
+    doc.setFontSize(10).setFont(undefined, "normal");
+    doc.text(`Cliente: ${cliente}`, 14, 46);
+    let yInfo = 52;
+    if (conInst) {
+      doc.text(`Fecha de asignacion de instalacion: ${fecha}`, 14, yInfo);
+      doc.text(`Hora: ${hora}`, 120, yInfo);
+      yInfo += 6;
+    }
+    doc.text(`Generado: ${new Date().toLocaleString("es-BO")}`, 14, yInfo);
+
+    const body = items.map(it => [
+      "",
+      cantLabel(it),
+      it.nombre + (it.sku ? `\nSKU: ${it.sku}` : ""),
+      money(it.precio) + (it.unit ? " /" + it.unit : ""),
+      money(it.qty * (it.precio || 0))
+    ]);
+
+    const IMG_SIZE = 20;
+    doc.autoTable({
+      startY: yInfo + 8,
+      head: [["Img", "Cant.", "Producto", "P. Unit", "Subtotal"]],
+      body,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [79, 140, 255], textColor: 255 },
+      columnStyles: {
+        0: { cellWidth: IMG_SIZE + 4 },
+        1: { halign: "center", cellWidth: 14 },
+        3: { halign: "right" },
+        4: { halign: "right" }
+      },
+      didParseCell: (d) => {
+        if (d.section === "body") {
+          d.row.minCellHeight = Math.max(d.row.minCellHeight || 0, IMG_SIZE + 4);
+        }
+      },
+      didDrawCell: (d) => {
+        if (d.section === "body" && d.column.index === 0 && dataUrls[d.row.index]) {
+          try {
+            doc.addImage(dataUrls[d.row.index], "JPEG", d.cell.x + 2, d.cell.y + 2, IMG_SIZE, IMG_SIZE);
+          } catch {}
+        }
+      }
+    });
+
+    let y = doc.lastAutoTable.finalY + 8;
+    doc.setFontSize(12).setFont(undefined, "bold");
+    doc.text(`TOTAL: ${money(total)}`, W - 14, y, { align: "right" });
+    y += 7;
+    doc.setFontSize(10).setFont(undefined, "normal");
+    doc.text(`Saldo adelanto: ${money(anticipo)}`, W - 14, y, { align: "right" });
+    y += 6;
+    doc.setFont(undefined, "bold");
+    doc.text(`Saldo restante: ${money(Math.max(total - anticipo, 0))}`, W - 14, y, { align: "right" });
+
+    const filename = `cotizacion_${sanitize(cliente)}_${$("#fechaInst").value || "sinf"}.pdf`;
+    doc.save(filename);
+    showToast("PDF generado: " + filename);
+  } catch (err) {
+    $("#printArea").innerHTML = buildPrintHtml();
+    window.print();
+  }
+}
+
+$("#pdfBtn").addEventListener("click", generatePDF);
+
+restoreCart();
+if (cart[INST_KEY]) {
+  $("#conInstalacion").checked = true;
+  $("#puntosInst").value = cart[INST_KEY].qty || 1;
+  $("#precioPunto").value = cart[INST_KEY].precio ?? 100;
+  syncInstalacion(false);
+}
+renderCart();
+loadCatalog();
+</script>
+</body>
+</html>
