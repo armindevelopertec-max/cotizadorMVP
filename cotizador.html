@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cotizador — DicaBolivia</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cotizador — BLUETEL</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -183,6 +183,17 @@
     padding: 5px 7px !important;
     font-size: 12px !important;
   }
+  .ci-oldline { display: flex; align-items: center; gap: 6px; }
+  .ci-old { text-decoration: line-through; color: var(--muted); font-size: 11px; }
+  .ci-dcto {
+    background: rgba(46,204,113,.15);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
   .ci-del {
     background: transparent;
     border: none;
@@ -354,6 +365,7 @@
 const CATS = [
   { id: "xvr", name: "XVR", file: "productos.json" },
   { id: "hik", name: "Camaras Hikvision", file: "camaras_hikvision.json" },
+  { id: "dahua", name: "Camaras Dahua", file: "camaras_dahua.json" },
   { id: "cables", name: "Cables", file: "cables_redes.json" },
   { id: "acc", name: "Accesorios", file: "accesorios_camaras.json" }
 ];
@@ -385,16 +397,28 @@ function cantLabel(it) {
 }
 
 async function loadCatalog() {
+  let backfill = false;
   try {
     for (const cat of CATS) {
       const res = await fetch(cat.file, { cache: "no-store" });
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
-      data.forEach(p => catalog.push({ ...p, _cat: cat.id, _catName: cat.name }));
+      data.forEach(p => {
+        catalog.push({ ...p, _cat: cat.id, _catName: cat.name });
+        const entry = cart[`${cat.id}_${p.id}`];
+        if (entry && entry.precioOriginal == null) {
+          entry.precioOriginal = p.unidad === "metro" ? (p.precio_metro ?? precioBase(p)) : (p.precio_regular ?? precioBase(p));
+          backfill = true;
+        }
+      });
     }
     $("#banner").style.display = "none";
   } catch (err) {
     $("#banner").style.display = "block";
+  }
+  if (backfill) {
+    persistCart();
+    renderCart();
   }
   renderChips();
   renderGrid();
@@ -448,7 +472,7 @@ function renderGrid() {
         <span class="prod-cat">${escHtml(p._catName)}</span>
         <div class="prod-nombre">${escHtml(p.nombre)}</div>
         <span class="prod-sku">${escHtml(p.sku || "-")}</span>
-        <span class="badge-stock ${enStock ? "in-stock" : "out-stock"}">${enStock ? `Disponible${p.stock_cantidad ? " (" + p.stock_cantidad + ")" : ""}` : "Agotado"}</span>
+        <span class="badge-stock ${enStock ? "in-stock" : "out-stock"}">${enStock ? "Disponible" : "Agotado"}</span>
         <div class="prod-foot">
           <span class="prod-precio">${money(precioBase(p))}${p.unidad === "metro" ? '<small style="font-size:10px; color:var(--muted); font-weight:600">/m</small>' : ""}</span>
           <button class="btn-add" title="Agregar al carrito">+</button>
@@ -472,7 +496,17 @@ function addToCart(key) {
   if (cart[key]) {
     cart[key].qty += 1;
   } else {
-    cart[key] = { nombre: p.nombre, sku: p.sku || "", precio: precioBase(p), qty: 1, img: (Array.isArray(p.imagenes) && p.imagenes.length ? p.imagenes[0] : ""), unit: p.unidad === "metro" ? "m" : "" };
+    const base = precioBase(p);
+    const original = p.unidad === "metro" ? (p.precio_metro ?? base) : (p.precio_regular ?? base);
+    cart[key] = {
+      nombre: p.nombre,
+      sku: p.sku || "",
+      precio: base,
+      precioOriginal: original,
+      qty: 1,
+      img: (Array.isArray(p.imagenes) && p.imagenes.length ? p.imagenes[0] : ""),
+      unit: p.unidad === "metro" ? "m" : ""
+    };
   }
   persistCart();
   renderCart();
@@ -539,6 +573,9 @@ function renderCart() {
   entries.forEach(([key, it]) => {
     const div = document.createElement("div");
     div.className = "cart-item";
+    const orig = Number(it.precioOriginal);
+    const tieneDcto = !isNaN(orig) && orig > 0 && orig > (it.precio || 0);
+    const dctoPct = tieneDcto ? Math.round((1 - it.precio / orig) * 100) : null;
     div.innerHTML = `
       ${it.img ? `<img src="${it.img}" alt="">` : "<div></div>"}
       <div>
@@ -550,6 +587,7 @@ function renderCart() {
         </div>
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">
+        ${tieneDcto ? `<div class="ci-oldline"><span class="ci-old">${money(orig)}</span><span class="ci-dcto">-${dctoPct}%</span></div>` : ""}
         <input type="number" step="0.01" min="0" class="ci-price" value="${it.precio}">
         <button class="ci-del" title="Quitar">&#128465;</button>
       </div>
@@ -564,11 +602,22 @@ function renderCart() {
 }
 
 function updateTotals() {
-  const total = cartTotal();
+  let total = 0;
+  let totalOriginal = 0;
+  Object.values(cart).forEach(it => {
+    const precio = it.precio || 0;
+    const orig = Number(it.precioOriginal);
+    total += it.qty * precio;
+    totalOriginal += it.qty * (!isNaN(orig) && orig > precio ? orig : precio);
+  });
+  const ahorro = totalOriginal - total;
+  const pctAhorro = totalOriginal > 0 ? Math.round((ahorro / totalOriginal) * 100) : 0;
   const anticipo = Number($("#anticipo").value) || 0;
   const saldo = Math.max(total - anticipo, 0);
   $("#totals").innerHTML = `
     <div class="t-row"><span>Items</span><b>${Object.values(cart).reduce((a, i) => a + i.qty, 0)}</b></div>
+    ${ahorro > 0 ? `<div class="t-row"><span>Subtotal (precio normal)</span><s style="color:var(--muted)">${money(totalOriginal)}</s></div>
+    <div class="t-row" style="color:var(--green)"><span>Descuento (${pctAhorro}%)</span><b>-${money(ahorro)}</b></div>` : ""}
     <div class="t-row big"><span>Total</span><span>${money(total)}</span></div>
     <div class="t-row saldo"><span>Saldo restante</span><b>${money(saldo)}</b></div>
   `;
@@ -689,14 +738,23 @@ function buildPrintHtml() {
   const total = cartTotal();
   const anticipo = Number($("#anticipo").value) || 0;
   const conInst = $("#conInstalacion").checked;
-  const rows = Object.values(cart).map(it => `
+  let totalOriginal = 0;
+  const rows = Object.values(cart).map(it => {
+    const orig = Number(it.precioOriginal);
+    const tieneDcto = !isNaN(orig) && orig > 0 && orig > (it.precio || 0);
+    const dctoPct = tieneDcto ? Math.round((1 - it.precio / orig) * 100) : null;
+    totalOriginal += it.qty * (tieneDcto ? orig : (it.precio || 0));
+    return `
     <tr>
       <td style="text-align:center; width:64px">${it.img ? `<img src="${it.img}" style="width:56px; height:56px; object-fit:cover">` : ""}</td>
       <td style="text-align:center">${escHtml(cantLabel(it))}</td>
       <td>${escHtml(it.nombre)}${it.sku ? `<br><small>${escHtml(it.sku)}</small>` : ""}</td>
-      <td style="text-align:right">${money(it.precio)}</td>
+      <td style="text-align:right">${money(it.precio)}${tieneDcto ? `<br><small><s>${money(orig)}</s> -${dctoPct}%</small>` : ""}</td>
       <td style="text-align:right">${money(it.qty * (it.precio || 0))}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
+  const ahorro = Math.max(totalOriginal - total, 0);
+  const pctAhorro = totalOriginal > 0 ? Math.round((ahorro / totalOriginal) * 100) : 0;
   return `
     <div style="border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:10px">
       <h2 style="margin:0">BLUETEL</h2>
@@ -714,6 +772,8 @@ function buildPrintHtml() {
       <tbody>${rows}</tbody>
     </table>
     <table style="width:100%; margin-top:8px; font-size:13px">
+      ${ahorro > 0 ? `<tr><td align="right">Subtotal (precio normal): <s>${money(totalOriginal)}</s></td></tr>
+      <tr><td align="right" style="color:#1a8f4b">Descuento (${pctAhorro}%): -${money(ahorro)}</td></tr>` : ""}
       <tr><td align="right"><b>TOTAL: ${money(total)}</b></td></tr>
       <tr><td align="right">Saldo adelanto: ${money(anticipo)}</td></tr>
       <tr><td align="right"><b>Saldo restante: ${money(Math.max(total - anticipo, 0))}</b></td></tr>
@@ -736,6 +796,14 @@ async function generatePDF() {
   const hora = $("#horaInst").value || "-";
   const anticipo = Number($("#anticipo").value) || 0;
   const total = cartTotal();
+  const items = Object.values(cart);
+  const preciosOrig = items.map(it => {
+    const orig = Number(it.precioOriginal);
+    return !isNaN(orig) && orig > (it.precio || 0) ? orig : (it.precio || 0);
+  });
+  const totalOriginal = items.reduce((s, it, i) => s + it.qty * preciosOrig[i], 0);
+  const ahorro = Math.max(totalOriginal - total, 0);
+  const pctAhorro = totalOriginal > 0 ? Math.round((ahorro / totalOriginal) * 100) : 0;
 
   if (!window.jspdf) {
     $("#printArea").innerHTML = buildPrintHtml();
@@ -744,7 +812,6 @@ async function generatePDF() {
   }
 
   showToast("Generando PDF con imagenes...");
-  const items = Object.values(cart);
   const dataUrls = await Promise.all(items.map(it => normalizeImage(it.img)));
 
   try {
@@ -776,18 +843,22 @@ async function generatePDF() {
     }
     doc.text(`Generado: ${new Date().toLocaleString("es-BO")}`, 14, yInfo);
 
-    const body = items.map(it => [
-      "",
-      cantLabel(it),
-      it.nombre + (it.sku ? `\nSKU: ${it.sku}` : ""),
-      money(it.precio) + (it.unit ? " /" + it.unit : ""),
-      money(it.qty * (it.precio || 0))
-    ]);
+    const body = items.map((it, i) => {
+      const conDcto = preciosOrig[i] > (it.precio || 0);
+      return [
+        "",
+        cantLabel(it),
+        it.nombre + (it.sku ? `\nSKU: ${it.sku}` : ""),
+        money(it.precio) + (it.unit ? " /" + it.unit : "") + (conDcto ? `\nantes: ${money(preciosOrig[i])}` : ""),
+        conDcto ? `-${Math.round((1 - it.precio / preciosOrig[i]) * 100)}%` : "-",
+        money(it.qty * (it.precio || 0))
+      ];
+    });
 
     const IMG_SIZE = 20;
     doc.autoTable({
       startY: yInfo + 8,
-      head: [["Img", "Cant.", "Producto", "P. Unit", "Subtotal"]],
+      head: [["Img", "Cant.", "Producto", "P. Unit", "Dcto.", "Subtotal"]],
       body,
       styles: { fontSize: 9, cellPadding: 3 },
       headStyles: { fillColor: [79, 140, 255], textColor: 255 },
@@ -795,7 +866,8 @@ async function generatePDF() {
         0: { cellWidth: IMG_SIZE + 4 },
         1: { halign: "center", cellWidth: 14 },
         3: { halign: "right" },
-        4: { halign: "right" }
+        4: { halign: "center", textColor: [46, 204, 113] },
+        5: { halign: "right" }
       },
       didParseCell: (d) => {
         if (d.section === "body") {
@@ -811,7 +883,22 @@ async function generatePDF() {
       }
     });
 
+    const H = doc.internal.pageSize.getHeight();
+    const espacioTotales = ahorro > 0 ? 42 : 32;
     let y = doc.lastAutoTable.finalY + 8;
+    if (y + espacioTotales > H - 14) {
+      doc.addPage();
+      y = 20;
+    }
+    if (ahorro > 0) {
+      doc.setFontSize(10).setFont(undefined, "normal");
+      doc.text(`Subtotal (precio normal): ${money(totalOriginal)}`, W - 14, y, { align: "right" });
+      y += 6;
+      doc.setTextColor(46, 204, 113);
+      doc.text(`Descuento (${pctAhorro}%): -${money(ahorro)}`, W - 14, y, { align: "right" });
+      doc.setTextColor(0);
+      y += 6;
+    }
     doc.setFontSize(12).setFont(undefined, "bold");
     doc.text(`TOTAL: ${money(total)}`, W - 14, y, { align: "right" });
     y += 7;
