@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Variables de entorno (secrets)
+.env
+
+# Datos de scraping generados
+*.csv
+*.json
+*.json.bak
+
+# Binarios
+bin/
+yes
+yes.pub
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
