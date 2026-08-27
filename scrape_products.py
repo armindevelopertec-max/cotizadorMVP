@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import re
 import sys
 import time
@@ -272,29 +273,54 @@ def scrape_category(cat, category_url, out_json, out_csv):
     save_outputs(products, out_json, out_csv)
 
 
+def upload_jsons(files):
+    from upload_to_api import login, upload_products
+    import requests as _requests
+
+    session = _requests.Session()
+    login(session)
+    for path in files:
+        if os.path.exists(path):
+            upload_products(session, path)
+
+
 def main():
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
+    upload = "--upload" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--upload"]
+
+    scraped_files = []
+
+    if args:
+        arg = args[0]
         cat = next((c for c in CATEGORIES if c["id"] == arg), None)
         if cat:
-            scrape_category(cat, BASE_URL + cat["url"], f"{cat['out']}.json", f"{cat['out']}.csv")
-            return
-        category_url = arg if arg.startswith("http") else BASE_URL + arg
-        out_json, out_csv = "productos.json", "productos.csv"
-        if len(sys.argv) > 2:
-            base = sys.argv[2].strip("/")
-            out_json = f"{base}.json"
-            out_csv = f"{base}.csv"
-        scrape_category(None, category_url, out_json, out_csv)
-        return
+            out = f"{cat['out']}.json"
+            scrape_category(cat, BASE_URL + cat["url"], out, f"{cat['out']}.csv")
+            scraped_files.append(out)
+        else:
+            category_url = arg if arg.startswith("http") else BASE_URL + arg
+            out_json, out_csv = "productos.json", "productos.csv"
+            if len(args) > 1:
+                base = args[1].strip("/")
+                out_json = f"{base}.json"
+                out_csv = f"{base}.csv"
+            scrape_category(None, category_url, out_json, out_csv)
+            scraped_files.append(out_json)
+    else:
+        for cat in CATEGORIES:
+            print("=" * 60)
+            print(f"[Categoria] {cat['id']} -> {cat['out']}.json / {cat['out']}.csv")
+            print("=" * 60)
+            out = f"{cat['out']}.json"
+            scrape_category(cat, BASE_URL + cat["url"], out, f"{cat['out']}.csv")
+            scraped_files.append(out)
+        print("\n[Terminado] Categorias scrapeadas:", ", ".join(c["id"] for c in CATEGORIES))
 
-    for cat in CATEGORIES:
+    if upload and scraped_files:
+        print("\n" + "=" * 60)
+        print("[Upload] Subiendo productos a la API...")
         print("=" * 60)
-        print(f"[Categoria] {cat['id']} -> {cat['out']}.json / {cat['out']}.csv")
-        print("=" * 60)
-        scrape_category(cat, BASE_URL + cat["url"], f"{cat['out']}.json", f"{cat['out']}.csv")
-
-    print("\n[Terminado] Categorias scrapeadas:", ", ".join(c["id"] for c in CATEGORIES))
+        upload_jsons(scraped_files)
 
 
 if __name__ == "__main__":
